@@ -28,7 +28,7 @@ func (n *Needle) DiskSize(version Version) int64 {
 	return GetActualSize(n.Size, version)
 }
 
-func (n *Needle) prepareWriteBuffer(version Version) ([]byte, uint32, int64, error) {
+func (n *Needle) PrepareWriteBuffer(version Version) ([]byte, uint32, int64, error) {
 
 	writeBytes := make([]byte, 0)
 
@@ -141,7 +141,7 @@ func (n *Needle) Append(w backend.BackendStorageFile, version Version) (offset u
 		return
 	}
 
-	bytesToWrite, size, actualSize, err := n.prepareWriteBuffer(version)
+	bytesToWrite, size, actualSize, err := n.PrepareWriteBuffer(version)
 
 	if err == nil {
 		_, err = w.WriteAt(bytesToWrite, int64(offset))

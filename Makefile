@@ -26,6 +26,8 @@ clean:
 	rm -f $(ALL_TARGETS)
 
 run:
-	./transformer -dir=/home/summy/seaweedfs/vdata-backup -real_dir=/home/summy/seaweedfs/vdata -collection=faces -vid=1
+	./transformer -verbose=true -collection=faces -vid=1 \
+		-src=/home/zhoujian2/seaweedfs/vdata \
+		-dst=/home/zhoujian2/seaweedfs/vdata-backup
 
 .PHONY: all build clean

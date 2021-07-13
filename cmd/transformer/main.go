@@ -19,10 +19,15 @@ var (
 	_Collection = param_parser.String("collection", "", "the volume collection name.")
 	_VolumeId   = param_parser.Int("vid", -1, "the volume id, the volume .dat and .idx files should already exist inside the src dir.")
 	_Limit      = param_parser.Int("limit", 0, "only show first n entries if specified.")
+	_Verbose    = param_parser.Bool("verbose", false, "verbose")
 )
 
 func main() {
 	param_parser.Parse()
+
+	if *_Verbose {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 
 	if *_Collection == "" || *_VolumeId == -1 {
 		logrus.Warning("nothing to do!!!")
@@ -52,10 +57,15 @@ func main() {
 		SrcNeedleMap: srcNM,
 		DstNeedleMap: dstNM,
 		DstDataFile:  path.Join(*_DstDir, datFile),
+		CipherKey:    make([]byte, 0), // TODO: set the CipherKey
 	}
 	err = storage.ScanVolumeFile(*_SrcDir, *_Collection, vid, storage.NeedleMapInMemory, volumeFileScanner)
 	if err != nil && err != io.EOF {
-		logrus.Fatalf("failed to scan volume file, err: %v \n", err)
+		if volumeFileScanner.ExitErr != ErrCreateDataFile {
+			volumeFileScanner.Close()
+		}
+		_ = os.Remove(path.Join(*_DstDir, datFile))
+		logrus.Fatalf("failed to scan volume file, err: %v", err)
 	}
 	volumeFileScanner.Close()
 
