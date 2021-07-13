@@ -184,7 +184,7 @@ func ScanVolumeFile(dirname string, collection string, id needle.VolumeId,
 	if v, err = loadVolumeWithoutIndex(dirname, collection, id, needleMapKind); err != nil {
 		return fmt.Errorf("failed to load volume %d: %v", id, err)
 	}
-	if v.volumeInfo.Version == 0 {
+	if v.volumeInfo.Version == 0 || v.volumeInfo.Version == 3 {
 		if err = volumeFileScanner.VisitSuperBlock(v.SuperBlock); err != nil {
 			return fmt.Errorf("failed to process volume %d super block: %v", id, err)
 		}
