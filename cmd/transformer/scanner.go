@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -43,7 +44,7 @@ type VolumeFileScanner4Transformer struct {
 func (scanner *VolumeFileScanner4Transformer) VisitSuperBlock(superBlock super_block.SuperBlock) error {
 	scanner.Version = superBlock.Version
 
-	logrus.Debug("create new data file <%s>", scanner.DstDataFile)
+	logrus.Debugf("create new data file <%s>", scanner.DstDataFile)
 	fd, err := os.OpenFile(scanner.DstDataFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		logrus.Errorf("failed to create new data file, err: %v", err)
@@ -115,7 +116,11 @@ func (scanner *VolumeFileScanner4Transformer) CreateDstNeedle(srcNeedle *needle.
 	dstNeedle.Cookie = srcNeedle.Cookie
 	dstNeedle.Id = srcNeedle.Id
 	dstNeedle.Data, err = myutils.Encrypt(srcNeedle.Data, scanner.CipherKey)
-	dstNeedle.Ttl = srcNeedle.Ttl // TODO: regenerate the ttl
+
+	now := time.Now()
+	storedDays := uint32(((now.UnixNano() - int64(srcNeedle.AppendAtNs)) / 1e9) / 86400)
+	days := srcNeedle.Ttl.ToUint32()>>8 - storedDays
+	dstNeedle.Ttl, _ = needle.ReadTTL(fmt.Sprintf("%dd", days))
 
 	if len(srcNeedle.Name) > 0 && len(srcNeedle.Name) < 256 {
 		dstNeedle.Name = make([]byte, len(srcNeedle.Name))
