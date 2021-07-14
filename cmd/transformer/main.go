@@ -11,15 +11,26 @@ import (
 	"github.com/chrislusf/seaweedfs/weed/storage/needle"
 	"github.com/chrislusf/seaweedfs/weed/storage/needle_map"
 	"github.com/sirupsen/logrus"
+
+	myutils "github.com/amazingchow/seaweedfs-tools/pkg/utils"
 )
 
 var (
-	_SrcDir     = param_parser.String("src", "/mnt/locals/seeweedfsvolume/volume0/volume", "directory to store volume data files used by seaweedfs.")
-	_DstDir     = param_parser.String("dst", "/mnt/locals/seeweedfsvolume/volume0/volume-output", "directory to store regenerated volume data files.")
-	_Collection = param_parser.String("collection", "", "the volume collection name.")
-	_VolumeId   = param_parser.Int("vid", -1, "the volume id, the volume .dat and .idx files should already exist inside the src dir.")
-	_Limit      = param_parser.Int("limit", 0, "only show first n entries if specified.")
-	_Verbose    = param_parser.Bool("verbose", false, "verbose")
+	_SrcDir = param_parser.String("src",
+		"/mnt/locals/seeweedfsvolume/volume0/volume",
+		"directory to store volume data files, the .idx and .dat files should already exist inside the dir.")
+	_DstDir = param_parser.String("dst",
+		"/mnt/locals/seeweedfsvolume/volume0/volume-output",
+		"directory to store encrypted volume data files.")
+	_Collection = param_parser.String("collection",
+		"",
+		"the volume collection name.")
+	_VolumeId = param_parser.Int("vid",
+		-1,
+		"the volume id.")
+	_Verbose = param_parser.Bool("verbose",
+		false,
+		"verbose")
 )
 
 func main() {
@@ -30,48 +41,56 @@ func main() {
 	}
 
 	if *_Collection == "" || *_VolumeId == -1 {
-		logrus.Warning("nothing to do!!!")
+		logrus.Warning("no collection or volume id provided")
 		return
 	}
 
 	var err error
 
+	ck, err := myutils.GetCipherKey()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	// 只需生成.idx文件和.dat文件, 可以复用原先的.vif文件
 	filename := *_Collection + "_" + strconv.Itoa(*_VolumeId)
 	idxFile := filename + ".idx"
 	datFile := filename + ".dat"
 
+	// needle map缓存needle索引信息, key = []byte(NeedleId), value = []byte(Offset + Size)
 	srcNM := needle_map.NewMemDb()
 	defer srcNM.Close()
-	// read from source idx file
 	if err = srcNM.LoadFromIdx(path.Join(*_SrcDir, idxFile)); err != nil {
 		logrus.Fatalf("failed to load needle map from %s, err: %v", path.Join(*_SrcDir, idxFile), err)
 	}
 	dstNM := needle_map.NewMemDb()
 	defer dstNM.Close()
 
-	logrus.Infof("ready to parse %s", idxFile)
+	logrus.Infof("ready to parse %s", path.Join(*_SrcDir, datFile))
 
 	vid := needle.VolumeId(*_VolumeId)
 	volumeFileScanner := &VolumeFileScanner4Transformer{
-		Vid:          vid,
 		SrcNeedleMap: srcNM,
 		DstNeedleMap: dstNM,
 		DstDataFile:  path.Join(*_DstDir, datFile),
-		CipherKey:    make([]byte, 0), // TODO: set the CipherKey
+		CipherKey:    ck,
 	}
 	err = storage.ScanVolumeFile(*_SrcDir, *_Collection, vid, storage.NeedleMapInMemory, volumeFileScanner)
 	if err != nil && err != io.EOF {
 		if volumeFileScanner.ExitErr != ErrCreateDataFile {
 			volumeFileScanner.Close()
+			_ = os.Remove(path.Join(*_DstDir, datFile))
 		}
-		_ = os.Remove(path.Join(*_DstDir, datFile))
-		logrus.Fatalf("failed to scan volume file, err: %v", err)
+		logrus.Fatalf("failed to scan %s, err: %v", path.Join(*_SrcDir, datFile), err)
 	}
 	volumeFileScanner.Close()
 
-	// write to destination idx file
+	// 生成新的.idx文件
 	if err = dstNM.SaveToIdx(path.Join(*_DstDir, idxFile)); err != nil {
 		logrus.Fatalf("failed to save needle map to %s, err: %v", path.Join(*_DstDir, idxFile), err)
 		_ = os.Remove(path.Join(*_DstDir, idxFile))
 	}
+
+	logrus.Infof("finish to parse %s", path.Join(*_SrcDir, datFile))
+	logrus.Infof("totally processed %d needles", volumeFileScanner.Counter())
 }
