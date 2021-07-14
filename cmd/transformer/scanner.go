@@ -2,9 +2,8 @@ package main
 
 import (
 	"errors"
-	"fmt"
-	"io"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/chrislusf/seaweedfs/weed/storage/backend"
@@ -26,36 +25,37 @@ var (
 	ErrSetNeedleMap             = errors.New("can not set k/v for needle map")
 )
 
+// 实现seaweedfs的VolumeFileScanner接口
 type VolumeFileScanner4Transformer struct {
-	Version needle.Version
-	Counter int
+	version        needle.Version
+	counter        int64
+	dstDataBackend *backend.DiskFile
 
-	Vid            needle.VolumeId
-	SrcNeedleMap   *needle_map.MemDb
-	DstNeedleMap   *needle_map.MemDb
-	DstDataFile    string
-	DstDataBackend *backend.DiskFile
-
-	CipherKey []byte
+	SrcNeedleMap *needle_map.MemDb
+	DstNeedleMap *needle_map.MemDb
+	DstDataFile  string
+	CipherKey    []byte
 
 	ExitErr error
 }
 
 func (scanner *VolumeFileScanner4Transformer) VisitSuperBlock(superBlock super_block.SuperBlock) error {
-	scanner.Version = superBlock.Version
+	scanner.version = superBlock.Version
 
-	logrus.Debugf("create new data file <%s>", scanner.DstDataFile)
-	fd, err := os.OpenFile(scanner.DstDataFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	logrus.Debugf("create new data file %s", scanner.DstDataFile)
+	file, err := os.OpenFile(scanner.DstDataFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		logrus.Errorf("failed to create new data file, err: %v", err)
+		logrus.Errorf("failed to create new data file %s, err: %v", scanner.DstDataFile, err)
 		scanner.ExitErr = ErrCreateDataFile
 		return ErrCreateDataFile
 	}
-	scanner.DstDataBackend = backend.NewDiskFile(fd)
-	_, err = scanner.DstDataBackend.WriteAt(superBlock.Bytes(), 0)
+	scanner.dstDataBackend = backend.NewDiskFile(file)
+	// TODO: 是否需要修改SuperBlock.Ttl?
+	_, err = scanner.dstDataBackend.WriteAt(superBlock.Bytes(), 0)
 	if err != nil {
-		scanner.DstDataBackend.Close()
-		return err
+		logrus.Errorf("failed to write needle bytes for super block, err: %v", err)
+		scanner.ExitErr = ErrWriteNeedleBytes
+		return ErrWriteNeedleBytes
 	}
 	return nil
 }
@@ -64,108 +64,120 @@ func (scanner *VolumeFileScanner4Transformer) ReadNeedleBody() bool {
 	return true
 }
 
-func (scanner *VolumeFileScanner4Transformer) VisitNeedle(srcNeedle *needle.Needle, offset int64, needleHeader, needleBody []byte) error {
+func (scanner *VolumeFileScanner4Transformer) VisitNeedle(srcNeedle *needle.Needle, offset int64, _, _ []byte) error {
 	nv, ok := scanner.SrcNeedleMap.Get(srcNeedle.Id)
 	if ok && nv.Size > 0 && nv.Size != types.TombstoneFileSize && nv.Offset.ToAcutalOffset() == offset {
-		logrus.Debugf("process needle, key %d offset %d size %d disk_size %d", srcNeedle.Id, offset, srcNeedle.Size, srcNeedle.DiskSize(scanner.Version))
-		scanner.Counter++
-		if *_Limit > 0 && scanner.Counter > *_Limit {
-			return io.EOF
-		}
-		// 1. write the needle to .dat file
+		logrus.Debugf("process needle <id: %d | offset: %d | size: %d | disk_size: %d>",
+			srcNeedle.Id, offset, srcNeedle.Size, srcNeedle.DiskSize(scanner.version))
+
+		scanner.counter++
+
+		// 1. write the needle to destination .dat file
 		// 1.1 create a new needle from the old one
 		dstNeedle, err := scanner.CreateDstNeedle(srcNeedle)
 		if err != nil {
 			logrus.Errorf("failed to create new needle, err: %v", err)
+			scanner.ExitErr = ErrCreateNeedle
 			return ErrCreateNeedle
 		}
 		dstNeedle.AppendAtNs = uint64(time.Now().UnixNano())
 		// 1.2 fill in the bytes array with the new needle
-		bytesToWrite, _, _, err := dstNeedle.PrepareWriteBuffer(scanner.Version)
+		bytesToWrite, _, _, err := dstNeedle.PrepareWriteBuffer(scanner.version)
 		if err != nil {
 			logrus.Errorf("failed to prepare write buffer, err: %v", err)
+			scanner.ExitErr = ErrPrepareNeedleWriteBuffer
 			return ErrPrepareNeedleWriteBuffer
 		}
-		// 1.3 fetch the .dat file write-offset
+		// 1.3 get the write-offset
 		var offset int64
-		if end, _, err := scanner.DstDataBackend.GetStat(); err == nil {
-			offset = end
-		} else {
+		offset, _, err = scanner.dstDataBackend.GetStat()
+		if err != nil {
 			logrus.Errorf("failed to get write-offset, err: %v", err)
+			scanner.ExitErr = ErrGetDataFileWriteOffset
 			return ErrGetDataFileWriteOffset
 		}
 		// 1.4 write the bytes array into backend
-		if _, err = scanner.DstDataBackend.WriteAt(bytesToWrite, offset); err != nil {
+		_, err = scanner.dstDataBackend.WriteAt(bytesToWrite, offset)
+		if err != nil {
 			logrus.Errorf("failed to write needle bytes, err: %v", err)
+			scanner.ExitErr = ErrWriteNeedleBytes
 			return ErrWriteNeedleBytes
 		}
+
 		// 2. write the needle index info to .idx file
-		if err = scanner.DstNeedleMap.Set(dstNeedle.Id, types.ToOffset(int64(offset)), dstNeedle.Size); err != nil {
+		err = scanner.DstNeedleMap.Set(dstNeedle.Id, types.ToOffset(int64(offset)), dstNeedle.Size)
+		if err != nil {
 			logrus.Errorf("failed to set k/v for needle map, err: %v", err)
+			scanner.ExitErr = ErrSetNeedleMap
 			return ErrSetNeedleMap
 		}
 	}
 	if !ok {
-		logrus.Debugf("this needle <%d> seems to be deleted", srcNeedle.Id)
+		logrus.Warningf("this needle <%d> seems to be deleted already", srcNeedle.Id)
 	}
 	return nil
 }
 
 func (scanner *VolumeFileScanner4Transformer) CreateDstNeedle(srcNeedle *needle.Needle) (dstNeedle *needle.Needle, err error) {
 	dstNeedle = new(needle.Needle)
+	// set Cookie + Id
 	dstNeedle.Cookie = srcNeedle.Cookie
 	dstNeedle.Id = srcNeedle.Id
+	// set Data + DataSize
 	dstNeedle.Data, err = myutils.Encrypt(srcNeedle.Data, scanner.CipherKey)
-
+	if err != nil {
+		return
+	}
+	dstNeedle.DataSize = uint32(len(dstNeedle.Data))
+	// set Name + NameSize
+	dstNeedle.Name = make([]byte, srcNeedle.NameSize)
+	copy(dstNeedle.Name, srcNeedle.Name)
+	dstNeedle.NameSize = srcNeedle.NameSize
+	dstNeedle.SetHasName()
+	// set Mime + MimeSize
+	dstNeedle.Mime = make([]byte, srcNeedle.MimeSize)
+	copy(dstNeedle.Mime, srcNeedle.Mime)
+	dstNeedle.MimeSize = srcNeedle.MimeSize
+	dstNeedle.SetHasMime()
+	// set Pairs + PairsSize
+	dstNeedle.Pairs = make([]byte, srcNeedle.PairsSize)
+	copy(dstNeedle.Pairs, srcNeedle.Pairs)
+	dstNeedle.PairsSize = srcNeedle.PairsSize
+	dstNeedle.SetHasPairs()
+	// set LastModified
+	dstNeedle.LastModified = srcNeedle.LastModified
+	if dstNeedle.LastModified == 0 {
+		dstNeedle.LastModified = uint64(time.Now().Unix())
+	}
+	dstNeedle.SetHasLastModifiedDate()
+	// set Ttl
 	now := time.Now()
 	storedDays := uint32(((now.UnixNano() - int64(srcNeedle.AppendAtNs)) / 1e9) / 86400)
-	days := srcNeedle.Ttl.ToUint32()>>8 - storedDays
-	dstNeedle.Ttl, _ = needle.ReadTTL(fmt.Sprintf("%dd", days))
-
-	if len(srcNeedle.Name) > 0 && len(srcNeedle.Name) < 256 {
-		dstNeedle.Name = make([]byte, len(srcNeedle.Name))
-		copy(dstNeedle.Name, srcNeedle.Name)
-		dstNeedle.NameSize = uint8(len(dstNeedle.Name))
-		dstNeedle.SetHasName()
+	days := int(srcNeedle.Ttl.ToUint32()>>8 - storedDays)
+	dstNeedle.Ttl, err = needle.ReadTTL(strconv.Itoa(days) + "d")
+	if err != nil {
+		return
 	}
-
-	if len(srcNeedle.Mime) > 0 && len(srcNeedle.Mime) < 256 {
-		dstNeedle.Mime = make([]byte, len(srcNeedle.Mime))
-		copy(dstNeedle.Mime, srcNeedle.Mime)
-		dstNeedle.MimeSize = uint8(len(dstNeedle.Mime))
-		dstNeedle.SetHasMime()
+	if dstNeedle.Ttl != needle.EMPTY_TTL {
+		dstNeedle.SetHasTtl()
 	}
-
-	if len(srcNeedle.Pairs) > 0 && len(srcNeedle.Pairs) < 65536 {
-		dstNeedle.Pairs = make([]byte, len(srcNeedle.Pairs))
-		copy(dstNeedle.Pairs, srcNeedle.Pairs)
-		dstNeedle.PairsSize = uint16(len(dstNeedle.Pairs))
-		dstNeedle.SetHasPairs()
-	}
+	// set Checksum
+	dstNeedle.Checksum = needle.NewCRC(dstNeedle.Data)
 
 	if srcNeedle.IsGzipped() {
 		dstNeedle.SetGzipped()
 	}
 
-	if dstNeedle.LastModified == 0 {
-		dstNeedle.LastModified = uint64(time.Now().Unix())
-	}
-	dstNeedle.SetHasLastModifiedDate()
-
-	if dstNeedle.Ttl != needle.EMPTY_TTL {
-		dstNeedle.SetHasTtl()
-	}
-
 	if srcNeedle.IsChunkedManifest() {
 		dstNeedle.SetIsChunkManifest()
 	}
-
-	dstNeedle.Checksum = needle.NewCRC(dstNeedle.Data)
-
 	return
 }
 
+func (scanner *VolumeFileScanner4Transformer) Counter() int64 {
+	return scanner.counter
+}
+
 func (scanner *VolumeFileScanner4Transformer) Close() {
-	logrus.Infof("totally processed %d needles", scanner.Counter)
-	_ = scanner.DstDataBackend.Close()
+	_ = scanner.dstDataBackend.Close()
 }
