@@ -25,9 +25,4 @@ endif
 clean:
 	rm -f $(ALL_TARGETS)
 
-run:
-	env ENCRYPTION_KEY=TEpSZVlpTURwRENuS0JkNXBGZzQzUT09 ./transformer -verbose=true -collection=faces -vid=1 \
-		-src=/home/zhoujian2/seaweedfs/vdata \
-		-dst=/home/zhoujian2/seaweedfs/vdata-backup
-
 .PHONY: all build clean
