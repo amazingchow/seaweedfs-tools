@@ -29,7 +29,7 @@ var (
 		"the volume id.")
 	_Newer = param_parser.String("newer",
 		"",
-		"export only files newer than this time, default is all files. Must be specified in RFC3339 without timezone, e.g. 2006-01-02T15:04:05.")
+		"export only files newer than this time, must be specified in RFC3339 without timezone, e.g. 2006-01-02T15:04:05.")
 	_TimeZone = param_parser.String("tz",
 		"",
 		"timezone, e.g. Asia/Shanghai.")
