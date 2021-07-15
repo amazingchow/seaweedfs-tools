@@ -4,7 +4,7 @@ VERSION     := v1.0.0
 BRANCH      := $(shell git symbolic-ref --short -q HEAD)
 BUILD       := $(shell git rev-parse --short HEAD)
 TAG         := $(VERSION)-$(BRANCH)-$(BUILD)
-TARGETS     := cleaner transformer
+TARGETS     := backup cleaner transformer
 ALL_TARGETS := $(TARGETS)
 
 ifeq ($(race), 1)
@@ -30,6 +30,9 @@ ifeq ("$(GOMODULEPATH)", "")
 	@exit 1
 endif
 	GOOS=linux GOARCH=$(ARCH) go build $(BUILD_FLAGS) $(GOMODULEPATH)/$(PROJECT)/cmd/$@
+
+lint:
+	@golangci-lint run --config=.golangci-lint.yml
 
 tag:
 	@git tag $(TAG)
