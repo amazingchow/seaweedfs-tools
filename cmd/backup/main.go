@@ -23,7 +23,7 @@ var (
 	_Replication = param_parser.String("replica",
 		"000",
 		"seaweedfs volume server replication parameter")
-	_SkipReadOnly = param_parser.Bool("read_only",
+	_SkipReadOnly = param_parser.Bool("skip_read_only",
 		false,
 		"skip read-only volumes")
 	_MasterHttp = param_parser.String("master_http",
