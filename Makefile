@@ -1,6 +1,6 @@
 PROJECT     := github.com/amazingchow/seaweedfs-tools
 SRC         := $(shell find . -type f -name '*.go' -not -path "./vendor/*")
-TARGETS     := transformer
+TARGETS     := cleaner transformer
 ALL_TARGETS := $(TARGETS)
 
 ifeq ($(race), 1)
