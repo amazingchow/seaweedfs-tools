@@ -4,7 +4,7 @@ VERSION     := v1.0.0
 BRANCH      := $(shell git symbolic-ref --short -q HEAD)
 BUILD       := $(shell git rev-parse --short HEAD)
 TAG         := $(VERSION)-$(BRANCH)-$(BUILD)
-TARGETS     := backup cleaner transformer
+TARGETS     := backup compactor transformer
 ALL_TARGETS := $(TARGETS)
 
 ifeq ($(race), 1)
