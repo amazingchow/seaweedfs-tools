@@ -15,5 +15,5 @@
 # vendor/
 
 /backup
-/cleaner
+/compactor
 /transformer

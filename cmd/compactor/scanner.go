@@ -24,7 +24,7 @@ var (
 )
 
 // 实现seaweedfs的VolumeFileScanner接口
-type VolumeFileScanner4Cleaner struct {
+type VolumeFileScanner4Compactor struct {
 	version        needle.Version
 	counter        int64
 	dstDataBackend *backend.DiskFile
@@ -37,7 +37,7 @@ type VolumeFileScanner4Cleaner struct {
 	ExitErr error
 }
 
-func (scanner *VolumeFileScanner4Cleaner) VisitSuperBlock(superBlock super_block.SuperBlock) error {
+func (scanner *VolumeFileScanner4Compactor) VisitSuperBlock(superBlock super_block.SuperBlock) error {
 	scanner.version = superBlock.Version
 
 	logrus.Debugf("create new data file %s", scanner.DstDataFile)
@@ -58,11 +58,11 @@ func (scanner *VolumeFileScanner4Cleaner) VisitSuperBlock(superBlock super_block
 	return nil
 }
 
-func (scanner *VolumeFileScanner4Cleaner) ReadNeedleBody() bool {
+func (scanner *VolumeFileScanner4Compactor) ReadNeedleBody() bool {
 	return true
 }
 
-func (scanner *VolumeFileScanner4Cleaner) VisitNeedle(srcNeedle *needle.Needle, offset int64, _, _ []byte) error {
+func (scanner *VolumeFileScanner4Compactor) VisitNeedle(srcNeedle *needle.Needle, offset int64, _, _ []byte) error {
 	nv, ok := scanner.SrcNeedleMap.Get(srcNeedle.Id)
 	if ok && nv.Size > 0 && nv.Size != types.TombstoneFileSize && nv.Offset.ToAcutalOffset() == offset {
 		if scanner.NewerThan >= 0 && srcNeedle.HasLastModifiedDate() && srcNeedle.LastModified < uint64(scanner.NewerThan) {
@@ -122,7 +122,7 @@ func (scanner *VolumeFileScanner4Cleaner) VisitNeedle(srcNeedle *needle.Needle, 
 	return nil
 }
 
-func (scanner *VolumeFileScanner4Cleaner) CreateDstNeedle(srcNeedle *needle.Needle) (dstNeedle *needle.Needle, err error) {
+func (scanner *VolumeFileScanner4Compactor) CreateDstNeedle(srcNeedle *needle.Needle) (dstNeedle *needle.Needle, err error) {
 	dstNeedle = new(needle.Needle)
 	// set Cookie + Id
 	dstNeedle.Cookie = srcNeedle.Cookie
@@ -176,10 +176,10 @@ func (scanner *VolumeFileScanner4Cleaner) CreateDstNeedle(srcNeedle *needle.Need
 	return
 }
 
-func (scanner *VolumeFileScanner4Cleaner) Counter() int64 {
+func (scanner *VolumeFileScanner4Compactor) Counter() int64 {
 	return scanner.counter
 }
 
-func (scanner *VolumeFileScanner4Cleaner) Close() {
+func (scanner *VolumeFileScanner4Compactor) Close() {
 	_ = scanner.dstDataBackend.Close()
 }

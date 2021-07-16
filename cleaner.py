@@ -26,11 +26,11 @@ if __name__ == "__main__":
     tz = args.tz
 
     if src_dir != "" and dst_dir != "" and newer != "":
-        if not os.path.isfile("./cleaner"):
-            print("please provide cleaner execution binary")
+        if not os.path.isfile("./compactor"):
+            print("please provide compactor execution binary")
             sys.exit(-1)
-        if not os.access("./cleaner", os.X_OK):
-            print("please set execution permission for cleaner")
+        if not os.access("./compactor", os.X_OK):
+            print("please set execution permission for compactor")
             sys.exit(-1)
 
         if not os.path.isdir(dst_dir):
@@ -51,7 +51,7 @@ if __name__ == "__main__":
             for vid in vids:
                 print("/-------------------- {}_{}.dat command --------------------/".format(collection, vid))
                 commands = [
-                    "./cleaner",
+                    "./compactor",
                     "-verbose=true",
                     "-collection={}".format(collection),
                     "-vid={}".format(vid),

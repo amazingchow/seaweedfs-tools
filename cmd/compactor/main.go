@@ -83,7 +83,7 @@ func main() {
 	logrus.Infof("ready to parse %s", path.Join(*_SrcDir, datFile))
 
 	vid := needle.VolumeId(*_VolumeId)
-	volumeFileScanner := &VolumeFileScanner4Cleaner{
+	volumeFileScanner := &VolumeFileScanner4Compactor{
 		SrcNeedleMap: srcNM,
 		DstNeedleMap: dstNM,
 		DstDataFile:  path.Join(*_DstDir, datFile),
