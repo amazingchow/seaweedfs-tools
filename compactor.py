@@ -8,6 +8,9 @@ import subprocess
 import sys
 from collections import defaultdict
 
+'''
+TODO: 目前的做法会导致生成越来越多的volume, 需要进一步做多volume的merge操作
+'''
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
@@ -48,6 +51,14 @@ if __name__ == "__main__":
             collection_vid_map[collection].append(vid)
 
         for collection, vids in collection_vid_map.items():
+            # 将该collection下所有的volume设置为只读状态, 后续针对该collection的写操作, seaweedfs会为之新建volume去写
+            for vid in vids:
+                src_idx_file = os.path.join(src_dir, "{}_{}.idx".format(collection, vid))
+                src_dat_file = os.path.join(src_dir, "{}_{}.dat".format(collection, vid))
+
+                os.chmod(src_idx_file, 0o444)
+                os.chmod(src_dat_file, 0o444)
+
             for vid in vids:
                 print("/-------------------- {}_{}.dat command --------------------/".format(collection, vid))
                 commands = [
@@ -73,6 +84,9 @@ if __name__ == "__main__":
                 shutil.move(dst_idx_file, src_idx_file)
                 # 用新数据文件替换旧数据文件
                 shutil.move(dst_dat_file, src_dat_file)
+
+                os.chmod(src_idx_file, 0o644)
+                os.chmod(src_dat_file, 0o644)
         
         # 删除临时目录
         os.rmdir(dst_dir)
