@@ -5,7 +5,8 @@ BRANCH      := $(shell git symbolic-ref --short -q HEAD)
 BUILD       := $(shell git rev-parse --short HEAD)
 TAG         := $(VERSION)-$(BRANCH)-$(BUILD)
 TARGETS     := backup compactor transformer
-ALL_TARGETS := $(TARGETS)
+TAG_TARGETS := backup-* compactor-* transformer-*
+ALL_TARGETS := $(TARGETS) $(TAG_TARGETS)
 
 ifeq ($(race), 1)
 	BUILD_FLAGS := -race
@@ -26,7 +27,7 @@ endif
 
 all: build
 
-build: $(ALL_TARGETS)
+build: $(TARGETS)
 
 $(TARGETS): $(SRC)
 ifeq ("$(GOMODULEPATH)", "")
@@ -39,9 +40,12 @@ lint:
 	@golangci-lint run --config=.golangci-lint.yml
 
 tag:
+	cp backup backup-$(TAG)
+	cp compactor compactor-$(TAG)
+	cp transformer transformer-$(TAG)
 	@git tag $(TAG)
 
 clean:
-	rm -f $(ALL_TARGETS)
+	rm -f $(ALL_TARGETS) 
 
 .PHONY: all build tag clean

@@ -15,5 +15,8 @@
 # vendor/
 
 /backup
+/backup-*
 /compactor
+/compactor-*
 /transformer
+/transformer-*
