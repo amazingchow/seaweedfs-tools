@@ -15,6 +15,10 @@ ifeq ($(debug), 1)
 	BUILD_FLAGS += -gcflags=all="-N -l"
 endif
 
+ifneq ($(BUILD_TAGS),)
+	BUILD_FLAGS+= -tags '$(BUILD_TAGS)'
+endif
+
 ARCH := amd64
 ifeq ($(sys_arch), arm64)
 	ARCH := $(sys_arch)
