@@ -47,7 +47,8 @@ if __name__ == "__main__":
         for dat_file in src_dat_files:
             filename = ntpath.basename(dat_file)
             filename_without_suffix = os.path.splitext(filename)[0]
-            collection, vid = filename_without_suffix.split("_")[0], filename_without_suffix.split("_")[1]
+            parts = filename_without_suffix.split("_")
+            collection, vid =  "_".join(parts[:len(parts)-1]), parts[len(parts)-1]
             collection_vid_map[collection].append(vid)
 
         for collection, vids in collection_vid_map.items():
