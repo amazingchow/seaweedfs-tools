@@ -41,7 +41,6 @@ if __name__ == "__main__":
             parts = filename_without_suffix.split("_")
             collection, vid =  "_".join(parts[:len(parts)-1]), parts[len(parts)-1]
             collection_vid_map[collection].append(vid)
-            collection_vid_map[collection].append(vid)
 
         for collection, vids in collection_vid_map.items():
             for vid in vids:
