@@ -103,6 +103,7 @@ func main() {
 	if err = dstNM.SaveToIdx(path.Join(*_DstDir, idxFile)); err != nil {
 		logrus.Fatalf("failed to save needle map to %s, err: %v", path.Join(*_DstDir, idxFile), err)
 		_ = os.Remove(path.Join(*_DstDir, idxFile))
+		_ = os.Remove(path.Join(*_DstDir, datFile))
 	}
 
 	logrus.Infof("finish to parse %s", path.Join(*_SrcDir, datFile))
