@@ -1,12 +1,13 @@
-PROJECT     := github.com/amazingchow/seaweedfs-tools
-SRC         := $(shell find . -type f -name '*.go' -not -path "./vendor/*")
-VERSION     := v1.0.0
-BRANCH      := $(shell git symbolic-ref --short -q HEAD)
-BUILD       := $(shell git rev-parse --short HEAD)
-TAG         := $(VERSION)-$(BRANCH)-$(BUILD)
-TARGETS     := backup compactor transformer
-TAG_TARGETS := backup-* compactor-* transformer-*
-ALL_TARGETS := $(TARGETS) $(TAG_TARGETS)
+PROJECT      := github.com/amazingchow/seaweedfs-tools
+SRC          := $(shell find . -type f -name '*.go' -not -path "./vendor/*")
+VERSION      := v1.0.0
+BRANCH       := $(shell git symbolic-ref --short -q HEAD)
+BUILD        := $(shell git rev-parse --short HEAD)
+TAG          := $(VERSION)-$(BRANCH)-$(BUILD)
+TARGETS      := backup compactor transformer
+TEST_TARGETS := check_how_many_needles_should_be_deleted generate-date-with-specified-last-modified-time
+TAG_TARGETS  := backup-* compactor-* transformer-*
+ALL_TARGETS  := $(TARGETS) $(TEST_TARGETS) $(TAG_TARGETS)
 
 ifeq ($(race), 1)
 	BUILD_FLAGS := -race
@@ -27,7 +28,7 @@ endif
 
 all: build
 
-build: $(TARGETS)
+build: $(TARGETS) $(TEST_TARGETS)
 
 $(TARGETS): $(SRC)
 ifeq ("$(GOMODULEPATH)", "")
@@ -35,6 +36,13 @@ ifeq ("$(GOMODULEPATH)", "")
 	@exit 1
 endif
 	GOOS=linux GOARCH=$(ARCH) go build $(BUILD_FLAGS) $(GOMODULEPATH)/$(PROJECT)/cmd/$@
+
+$(TEST_TARGETS): $(SRC)
+ifeq ("$(GOMODULEPATH)", "")
+	@echo "no GOMODULEPATH env provided!!!"
+	@exit 1
+endif
+	GOOS=linux GOARCH=$(ARCH) go build $(BUILD_FLAGS) $(GOMODULEPATH)/$(PROJECT)/tools/$@
 
 lint:
 	@golangci-lint run --config=.golangci-lint.yml
