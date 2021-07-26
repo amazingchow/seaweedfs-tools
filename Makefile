@@ -5,7 +5,7 @@ BRANCH       := $(shell git symbolic-ref --short -q HEAD)
 BUILD        := $(shell git rev-parse --short HEAD)
 TAG          := $(VERSION)-$(BRANCH)-$(BUILD)
 TARGETS      := backup compactor transformer
-TEST_TARGETS := generate-date-with-specified-last-modified-time
+TEST_TARGETS := check_how_many_needles_should_be_deleted generate-date-with-specified-last-modified-time
 TAG_TARGETS  := backup-* compactor-* transformer-*
 ALL_TARGETS  := $(TARGETS) $(TEST_TARGETS) $(TAG_TARGETS)
 
