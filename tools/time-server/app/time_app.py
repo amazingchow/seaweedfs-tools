@@ -30,5 +30,5 @@ def random_timestamp():
     response_object = {"status": "OK"}
     # here we want to get the value of passed (i.e. ?passed=14)
     passed_days = request.args.get("passed", 30, type=int)
-    response_object["time"] = time_utils_random_timestamp(passed_days)
+    response_object["timestamp"] = time_utils_random_timestamp(passed_days)
     return jsonify(response_object)

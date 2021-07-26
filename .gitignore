@@ -29,3 +29,4 @@ venv/
 /compactor-*
 /transformer
 /transformer-*
+/generate-date-with-specified-last-modified-time
