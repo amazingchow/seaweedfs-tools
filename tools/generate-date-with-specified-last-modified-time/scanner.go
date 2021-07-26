@@ -99,7 +99,7 @@ func (scanner *VolumeFileScanner4Transformer) VisitNeedle(srcNeedle *needle.Need
 			scanner.ExitErr = ErrCreateNeedle
 			return ErrCreateNeedle
 		}
-		if scanner.OlderThan >= 0 && srcNeedle.HasLastModifiedDate() && srcNeedle.LastModified < uint64(scanner.OlderThan) {
+		if scanner.OlderThan >= 0 && srcNeedle.HasLastModifiedDate() && dstNeedle.LastModified < uint64(scanner.OlderThan) {
 			scanner.shouldBeDeleted++
 		}
 		dstNeedle.AppendAtNs = uint64(time.Now().UnixNano())
